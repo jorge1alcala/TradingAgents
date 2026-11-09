@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from datetime import date, datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Callable
 
 import requests
 
@@ -86,7 +86,7 @@ class EODHDDailyCache:
     def _fetch(self, db, symbol: str, start: date, end: date) -> int:
         if not self.token:
             raise ValueError("EODHD_API_TOKEN is missing; set it in your environment.")
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         params = {"api_token": self.token, "from": start.isoformat(),
                   "to": end.isoformat(), "period": "d", "fmt": "json"}
         try:
@@ -98,10 +98,10 @@ class EODHDDailyCache:
             normalized = []
             for item in records:
                 d = _day(str(item["date"]))
-                o, h, l, c = (float(item[k]) for k in ("open", "high", "low", "close"))
-                if not (l <= o <= h and l <= c <= h and l > 0):
+                o, h, low, c = (float(item[k]) for k in ("open", "high", "low", "close"))
+                if not (low <= o <= h and low <= c <= h and low > 0):
                     raise ValueError("Invalid OHLC data")
-                normalized.append((symbol, d.isoformat(), o, h, l, c,
+                normalized.append((symbol, d.isoformat(), o, h, low, c,
                                    float(item["adjusted_close"]) if item.get("adjusted_close") is not None else None,
                                    int(item["volume"]) if item.get("volume") is not None else None, now))
         except Exception as exc:
@@ -137,7 +137,7 @@ class EODHDDailyCache:
         a, b = _day(start), _day(end)
         if a > b:
             raise ValueError("start is after end")
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
         if b > today:
             raise ValueError("end cannot be in the future")
         if refresh_last_days < 0:
@@ -162,7 +162,7 @@ class EODHDDailyCache:
         return {
             "symbol": symbol, "timeframe": "1d", "start": start, "end": end,
             "price_basis": "raw_ohlc_with_adjusted_close_separate",
-            "bars": [dict(zip(columns, row)) for row in rows],
+            "bars": [dict(zip(columns, row, strict=True)) for row in rows],
             "new_or_refreshed_bars": fetched,
             "api_requests_this_scan": self.request_count() - requests_before,
             "source": "eodhd" if gaps else "local_database",

@@ -1,6 +1,4 @@
 """Unit tests for the optional EODHD daily cache; no internet access required."""
-from datetime import datetime, timezone
-
 import pytest
 
 from tradingagents.dataflows.vendors.eodhd.daily_cache import EODHDDailyCache
